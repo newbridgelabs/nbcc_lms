@@ -1,6 +1,15 @@
 -- Fix registration and email confirmation issues
 -- Run this in your Supabase SQL Editor
 
+-- Drop existing functions first to avoid conflicts
+DROP FUNCTION IF EXISTS check_user_email_status(TEXT);
+DROP FUNCTION IF EXISTS cleanup_unconfirmed_user(TEXT);
+DROP FUNCTION IF EXISTS reset_allowed_user_status(TEXT);
+DROP FUNCTION IF EXISTS check_allowed_user(TEXT);
+DROP FUNCTION IF EXISTS handle_user_registration(TEXT, UUID);
+DROP FUNCTION IF EXISTS mark_allowed_user_used(TEXT);
+DROP FUNCTION IF EXISTS cleanup_failed_registration(TEXT);
+
 -- 1. Create function to check if user exists but email not confirmed
 CREATE OR REPLACE FUNCTION check_user_email_status(user_email TEXT)
 RETURNS TABLE (

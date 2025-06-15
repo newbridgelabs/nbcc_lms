@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { checkAdminAccess } from '../../lib/admin-config'
-import { Upload, Users, FileText, BookOpen, CheckCircle, Clock, AlertCircle, UserPlus } from 'lucide-react'
+import { Upload, Users, FileText, BookOpen, CheckCircle, Clock, AlertCircle, UserPlus, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AdminDashboard() {
@@ -245,6 +245,19 @@ export default function AdminDashboard() {
                 <div className="text-left min-w-0">
                   <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Allowed Users</h3>
                   <p className="text-xs sm:text-sm text-gray-500">Manage registration access</p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/admin/email-test')}
+              className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition-shadow min-h-[80px] sm:min-h-[100px]"
+            >
+              <div className="flex items-center">
+                <Mail className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 mr-3 sm:mr-4 flex-shrink-0" />
+                <div className="text-left min-w-0">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Email Test</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Test email delivery</p>
                 </div>
               </div>
             </button>
