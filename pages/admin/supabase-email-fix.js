@@ -75,7 +75,7 @@ export default function SupabaseEmailFix() {
         type: 'signup',
         email: testEmail,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+          emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/auth/callback`
         }
       })
 
@@ -149,8 +149,8 @@ Path: Authentication → Settings → Email
 
 ### Option A: Use Supabase Email Service (Default)
 - Enable "Enable email confirmations"
-- Set Site URL: ${window.location.origin}
-- Set Redirect URLs: ${window.location.origin}/auth/callback
+- Set Site URL: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}
+- Set Redirect URLs: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/auth/callback
 
 ### Option B: Configure Custom SMTP (Recommended)
 - Enable "Enable custom SMTP"
@@ -178,15 +178,19 @@ Body:
 
 ## Current Project Info:
 Project ID: ${supabaseInfo?.projectId}
-Site URL: ${window.location.origin}
-Callback URL: ${window.location.origin}/auth/callback
+Site URL: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}
+Callback URL: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/auth/callback
     `.trim()
 
-    navigator.clipboard.writeText(config).then(() => {
-      toast.success('Configuration guide copied to clipboard!')
-    }).catch(() => {
-      toast.error('Could not copy to clipboard')
-    })
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(config).then(() => {
+        toast.success('Configuration guide copied to clipboard!')
+      }).catch(() => {
+        toast.error('Could not copy to clipboard')
+      })
+    } else {
+      toast.error('Clipboard not available')
+    }
   }
 
   const disableEmailConfirmation = async () => {
@@ -353,8 +357,8 @@ Callback URL: ${window.location.origin}/auth/callback
                 <ol className="list-decimal list-inside space-y-1 text-blue-800">
                   <li>Go to Supabase Dashboard → Authentication → Settings</li>
                   <li>Enable "Enable email confirmations"</li>
-                  <li>Set Site URL: {window.location.origin}</li>
-                  <li>Add Redirect URL: {window.location.origin}/auth/callback</li>
+                  <li>Set Site URL: {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}</li>
+                  <li>Add Redirect URL: {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/auth/callback</li>
                   <li>Configure SMTP settings (recommended) or use Supabase email service</li>
                 </ol>
               </div>
