@@ -83,8 +83,16 @@ export default function Register() {
 
       if (data?.user) {
         console.log('Registration successful for:', data.user.email)
-        toast.success('Registration successful! Please check your email and click the verification link.')
-        // Redirect to a success page instead of verify page
+
+        if (data.isResend) {
+          // Confirmation email was resent
+          toast.success('Confirmation email has been resent! Please check your email and click the verification link.')
+        } else {
+          // New registration
+          toast.success('Registration successful! Please check your email and click the verification link.')
+        }
+
+        // Redirect to a success page
         router.push('/auth/check-email?email=' + encodeURIComponent(formData.email))
       } else {
         throw new Error('Registration completed but user data is missing')
