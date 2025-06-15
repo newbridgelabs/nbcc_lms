@@ -1,24 +1,31 @@
-# Church LMS - Learning Management System
+# NBCC Sermon Q&A System
 
-A comprehensive Learning Management System designed for church membership processes. This application allows new members to study church materials, track their progress, and complete a digital membership agreement.
+An interactive sermon Q&A system designed for churches to engage their congregation during and after sermons. Built with Next.js and Supabase for real-time interaction and seamless user experience.
 
 ## Features
 
-- 🔐 **Secure Authentication** - Google OAuth and email/password registration
-- 📚 **PDF Section Management** - Automatically splits PDFs into manageable sections
-- 📊 **Progress Tracking** - Visual progress indicators and completion tracking
-- ✍️ **Digital Signatures** - Canvas-based signature capture for agreements
-- 📧 **Email Integration** - Automated email delivery of completed agreements
+### 👥 **User Features**
+- 🎯 **Interactive Sermon Experience** - Step-by-step questions during sermons
+- 📝 **Private Notes** - Personal reflections and notes (first 5 questions)
+- ❓ **Public Q&A** - Submit questions for the pastor to answer
+- 📊 **Progress Tracking** - Visual progress through sermon questions
 - 📱 **Mobile Responsive** - Works seamlessly on all devices
-- 🎨 **Modern UI** - Clean, professional design with Tailwind CSS
+- 🔐 **Secure Authentication** - Email/password and social login
+
+### 🔧 **Admin Features**
+- ⚙️ **Sermon Management** - Create, edit, and manage sermons
+- ❓ **Question Builder** - Add private note prompts and public Q&A sections
+- 📊 **Admin Dashboard** - View participation statistics
+- 💬 **Q&A Management** - Review and respond to public questions
+- 👥 **User Management** - Admin access control
 
 ## Technology Stack
 
-- **Frontend**: Next.js 14, React 18, Tailwind CSS
-- **Backend**: Supabase (Database, Auth, Storage)
-- **PDF Processing**: PDF-lib, React-PDF
-- **Signatures**: Signature Pad
-- **Email**: EmailJS
+- **Frontend**: Next.js 13, React 18, Tailwind CSS
+- **Backend**: Next.js API Routes, Supabase
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
+- **UI Components**: Lucide React Icons, React Hot Toast
 - **Deployment**: Vercel (Free tier)
 
 ## Getting Started
@@ -51,73 +58,15 @@ A comprehensive Learning Management System designed for church membership proces
 4. **Configure Supabase Database**
    - Go to your Supabase dashboard
    - Navigate to SQL Editor
-   - Run the following SQL to create the required tables:
+   - Copy and run the complete SQL from `sql/complete_sermon_setup.sql`
+   - This will create all required tables and policies for the sermon system
 
+5. **Set up Admin User**
+   After running the SQL setup, make yourself an admin:
    ```sql
-   -- Enable RLS (Row Level Security)
-   ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
-
-   -- Create users table
-   CREATE TABLE public.users (
-     id UUID REFERENCES auth.users ON DELETE CASCADE,
-     email TEXT UNIQUE NOT NULL,
-     full_name TEXT,
-     username TEXT UNIQUE,
-     is_verified BOOLEAN DEFAULT FALSE,
-     verification_code TEXT,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     PRIMARY KEY (id)
-   );
-
-   -- Create PDF sections table
-   CREATE TABLE public.pdf_sections (
-     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     title TEXT NOT NULL,
-     section_number INTEGER NOT NULL,
-     total_sections INTEGER NOT NULL,
-     file_path TEXT,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-   );
-
-   -- Create user progress table
-   CREATE TABLE public.user_progress (
-     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-     section_id UUID REFERENCES public.pdf_sections(id) ON DELETE CASCADE,
-     completed BOOLEAN DEFAULT FALSE,
-     completed_at TIMESTAMP WITH TIME ZONE,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     UNIQUE(user_id, section_id)
-   );
-
-   -- Create agreements table
-   CREATE TABLE public.agreements (
-     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-     form_data JSONB NOT NULL,
-     user_signature TEXT NOT NULL,
-     pastor_signature TEXT,
-     pdf_url TEXT,
-     status TEXT DEFAULT 'pending',
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     signed_at TIMESTAMP WITH TIME ZONE
-   );
-
-   -- Create storage bucket for PDF sections
-   INSERT INTO storage.buckets (id, name, public) VALUES ('pdf-sections', 'pdf-sections', true);
-
-   -- Set up RLS policies
-   CREATE POLICY "Users can view own data" ON public.users FOR SELECT USING (auth.uid() = id);
-   CREATE POLICY "Users can update own data" ON public.users FOR UPDATE USING (auth.uid() = id);
-
-   CREATE POLICY "Anyone can view PDF sections" ON public.pdf_sections FOR SELECT TO authenticated;
-
-   CREATE POLICY "Users can view own progress" ON public.user_progress FOR SELECT USING (auth.uid() = user_id);
-   CREATE POLICY "Users can update own progress" ON public.user_progress FOR ALL USING (auth.uid() = user_id);
-
-   CREATE POLICY "Users can view own agreements" ON public.agreements FOR SELECT USING (auth.uid() = user_id);
-   CREATE POLICY "Users can create own agreements" ON public.agreements FOR INSERT WITH CHECK (auth.uid() = user_id);
+   UPDATE users
+   SET is_admin = true, role = 'admin'
+   WHERE email = 'your-email@domain.com';
    ```
 
 5. **Configure Google OAuth (Optional)**
@@ -135,31 +84,33 @@ A comprehensive Learning Management System designed for church membership proces
 
 ## Usage
 
-### For Church Administrators
+### For Pastors/Admins
 
-1. **Upload Study Materials**
-   - Prepare a PDF document (up to 30 pages recommended)
-   - The system will automatically split it into 5 sections
-   - Upload through the admin interface (to be implemented)
+1. **Create Sermons**
+   - Login to the admin dashboard at `/admin/sermons`
+   - Create a new sermon with title, date, and scripture reference
+   - Add questions for congregation interaction
 
-2. **Monitor Progress**
-   - View member progress through the dashboard
-   - Track completion rates and engagement
+2. **Manage Questions**
+   - Set questions as "Private Notes" (personal reflection)
+   - Set questions as "Public Q&A" (questions for pastor)
+   - Reorder and edit questions as needed
 
-### For Church Members
+3. **Review Q&A**
+   - View submitted public questions anonymously
+   - Respond to questions for next week's session
 
-1. **Register and Verify**
-   - Create an account with email verification
-   - Or sign in with Google
+### For Congregation Members
 
-2. **Study Materials**
-   - Progress through 5 sections of study materials
-   - Each section must be completed before proceeding to the next
+1. **Join Sermon**
+   - Login and select the current sermon
+   - Work through private reflection questions
+   - Take personal notes that only you can see
 
-3. **Complete Agreement**
-   - Fill out the membership agreement form
-   - Provide digital signature
-   - Receive PDF copy via email
+2. **Ask Questions**
+   - Submit questions for the pastor in the public Q&A section
+   - Questions are submitted anonymously
+   - View responses in future sessions
 
 ## Deployment
 
