@@ -1,0 +1,13 @@
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/auth/login": "pages/auth/login.js",
+  "/dashboard": "pages/dashboard.js",
+  "/sermons/[id]": "pages/sermons/[id].js",
+  "/api/sermons": "pages/api/sermons.js",
+  "/": "pages/index.js",
+  "/api/sermons/[id]/participation": "pages/api/sermons/[id]/participation.js",
+  "/api/sermons/[id]/responses": "pages/api/sermons/[id]/responses.js",
+  "/sermons": "pages/sermons.js"
+}
