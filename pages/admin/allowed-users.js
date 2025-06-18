@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { checkAdminAccess } from '../../lib/admin-config'
-import { sendHybridEmail } from '../../lib/supabase-email'
+import { sendEmailJSInvitation } from '../../lib/supabase-email'
 import { ArrowLeft, Users, Plus, Mail, Trash2, Eye, UserPlus, Send, Edit } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -46,83 +46,46 @@ export default function AllowedUsersManagement() {
     }
   }
 
-  // Removed temp password generation - using invitation-only registration instead
-
-  const handleAddUser = async (e) => {
-    e.preventDefault()
-    
-    if (!formData.email || !formData.fullName) {
-      toast.error('Please fill in all fields')
-      return
-    }
-
-    setProcessing(true)
-
+  const handleAllowAndInvite = async (email, fullName) => {
     try {
-      // Add user to allowed_users table
-      const { data, error } = await supabase
+      setLoading(true)
+      
+      // First insert the new user into allowed_users table
+      const { error: insertError } = await supabase
         .from('allowed_users')
-        .insert({
-          email: formData.email.toLowerCase(),
-          full_name: formData.fullName,
-          invited_by: user.id,
+        .insert([{
+          email: email.toLowerCase(),
+          full_name: fullName,
+          is_allowed: true,
           invitation_sent_at: new Date().toISOString()
-        })
-        .select()
-        .single()
+        }])
+      
+      if (insertError) throw insertError
 
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          throw new Error('This email is already in the allowed users list')
-        }
-        throw error
+      // Send invitation email using EmailJS
+      const emailResult = await sendEmailJSInvitation(email, fullName)
+      
+      if (!emailResult?.success) {
+        throw new Error(emailResult?.error || 'Failed to send invitation email')
       }
 
-      // Send invitation email
-      const emailResult = await sendHybridEmail({
-        to_email: formData.email,
-        to_name: formData.fullName,
-        subject: 'Welcome to New Bridge Community Church - Complete Your Registration',
-        message: `Dear ${formData.fullName},
-
-You have been invited to join the New Bridge Community Church family!
-
-To complete your membership registration, please visit our website and create your account using this email address.
-
-Registration Link: ${window.location.origin}/auth/register
-
-We look forward to welcoming you to our church community.
-
-Blessings,
-NBCC Admin Team`
-      }, 'invitation')
-
-      if (emailResult.success) {
-        toast.success('User added and invitation email sent successfully!')
-      } else {
-        toast.success('User added successfully, but email sending failed. Please share credentials manually.')
-        console.warn('Email sending failed:', emailResult.error)
-      }
-
-      // Reset form and reload data
-      setFormData({ email: '', fullName: '' })
-      setShowAddForm(false)
+      toast.success('User allowed and invitation sent!')
       await loadAllowedUsers()
-
     } catch (error) {
-      console.error('Error adding user:', error)
-      toast.error(error.message || 'Failed to add user')
+      console.error('Error allowing user:', error)
+      toast.error(error?.message || 'An error occurred while allowing user')
     } finally {
-      setProcessing(false)
+      setLoading(false)
     }
   }
 
   const handleDeleteUser = async (userId, email) => {
-    if (!confirm(`Are you sure you want to remove ${email} from the allowed users list?`)) {
+    if (!confirm(`Are you sure you want to remove ${email} from the allowed users list?\n\nThis will fully reset their registration and remove them from all systems, including any pending or incomplete registrations.\n\nProceed?`)) {
       return
     }
 
     try {
+      // Step 1: Delete from allowed_users table
       const { error } = await supabase
         .from('allowed_users')
         .delete()
@@ -130,7 +93,22 @@ NBCC Admin Team`
 
       if (error) throw error
 
-      toast.success('User removed successfully')
+      toast.success('User removed from allowed list. Cleaning up registration state...')
+
+      // Step 2: Call cleanup API to remove from auth.users, custom tables, etc.
+      const cleanupRes = await fetch('/api/admin/cleanup-auth-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      const cleanupData = await cleanupRes.json()
+
+      if (cleanupRes.ok && cleanupData.success) {
+        toast.success('User registration state fully reset!')
+      } else {
+        toast.error('Removed from allowed list, but failed to fully clean up: ' + (cleanupData.error || 'Unknown error'))
+      }
+
       await loadAllowedUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
@@ -168,23 +146,7 @@ NBCC Admin Team`
     setProcessing(true)
 
     try {
-      const emailResult = await sendHybridEmail({
-        to_email: allowedUser.email,
-        to_name: allowedUser.full_name,
-        subject: 'Welcome to New Bridge Community Church - Complete Your Registration',
-        message: `Dear ${allowedUser.full_name},
-
-You have been invited to join the New Bridge Community Church family!
-
-To complete your membership registration, please visit our website and create your account using this email address.
-
-Registration Link: ${window.location.origin}/auth/register
-
-We look forward to welcoming you to our church community.
-
-Blessings,
-NBCC Admin Team`
-      }, 'invitation')
+      const emailResult = await sendEmailJSInvitation(allowedUser.email, allowedUser.full_name)
 
       if (emailResult.success) {
         // Update invitation_sent_at timestamp
@@ -260,7 +222,12 @@ NBCC Admin Team`
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Add New Allowed User
                   </h3>
-                  <form onSubmit={handleAddUser}>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    await handleAllowAndInvite(formData.email, formData.fullName);
+                    setShowAddForm(false);
+                    setFormData({ email: '', fullName: '' });
+                  }}>
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Full Name

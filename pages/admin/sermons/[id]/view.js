@@ -15,6 +15,7 @@ import {
   BarChart3
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '../../../../lib/supabase'
 
 export default function AdminSermonView() {
   const [user, setUser] = useState(null)
@@ -93,16 +94,26 @@ export default function AdminSermonView() {
 
   const loadStats = async () => {
     try {
-      // This would need additional API endpoints to get participation stats
-      // For now, we'll show placeholder data
-      setStats({
-        totalParticipants: 0,
-        completedParticipants: 0,
-        totalResponses: 0,
-        publicQuestions: 0
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('No auth token available')
+      }
+
+      const response = await fetch(`/api/sermons/${id}/stats`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
       })
+
+      if (!response.ok) {
+        throw new Error('Failed to load stats')
+      }
+
+      const { stats } = await response.json()
+      setStats(stats)
     } catch (error) {
       console.error('Error loading stats:', error)
+      toast.error('Failed to load participation stats')
     }
   }
 

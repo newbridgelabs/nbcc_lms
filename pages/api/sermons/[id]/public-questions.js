@@ -11,26 +11,56 @@ export default async function handler(req, res) {
     // Get user from session cookie or auth header
     const authHeader = req.headers.authorization
     const sessionCookie = req.cookies['sb-access-token'] || req.cookies['supabase-auth-token']
-
-    let user = null
+    let token = null
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7)
-      const { data: { user: authUser }, error } = await supabase.auth.getUser(token)
-      if (!error) user = authUser
+      token = authHeader.substring(7)
     } else if (sessionCookie) {
-      const { data: { user: authUser }, error } = await supabase.auth.getUser(sessionCookie)
-      if (!error) user = authUser
+      // Handle both JSON and string tokens
+      if (typeof sessionCookie === 'string' && sessionCookie.startsWith('{')) {
+        try {
+          const parsedCookie = JSON.parse(sessionCookie)
+          token = parsedCookie.access_token || parsedCookie[0]?.access_token
+        } catch (e) {
+          console.warn('Failed to parse session cookie as JSON:', e)
+          token = sessionCookie
+        }
+      } else if (Array.isArray(sessionCookie) && sessionCookie[0]?.access_token) {
+        token = sessionCookie[0].access_token
+      } else {
+        token = sessionCookie
+      }
+    }
+
+    if (!token) {
+      console.error('No auth token found:', { authHeader: !!authHeader, sessionCookie: !!sessionCookie })
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    // Get user from token
+    let user
+    const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token)
+    user = authUser
+    
+    if (userError) {
+      console.error('Auth error:', userError)
+      // Try to refresh the session if token is expired
+      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError || !session?.user) {
+        return res.status(401).json({ error: 'Invalid authentication' })
+      }
+      user = session.user
     }
 
     if (!user) {
-      return res.status(401).json({ error: 'Authentication required' })
+      return res.status(401).json({ error: 'No user found' })
     }
 
     const { id: sermonId } = req.query
 
     if (req.method === 'GET') {
       const isAdmin = await checkAdminStatus(user.id, user.email)
+      console.log('Admin status check:', { isAdmin, userId: user.id, userEmail: user.email })
       
       if (isAdmin) {
         // Admin view: Get all public questions (anonymously)
@@ -41,15 +71,19 @@ export default async function handler(req, res) {
             question_text,
             is_answered,
             admin_response,
-            created_at
+            created_at,
+            user_id,
+            sermon_id
           `)
           .eq('sermon_id', sermonId)
           .order('created_at', { ascending: true })
 
         if (error) {
+          console.error('Error fetching admin questions:', error)
           throw error
         }
 
+        console.log('Admin questions loaded:', questions?.length || 0)
         return res.status(200).json({ questions })
       } else {
         // User view: Get only their own questions
@@ -61,6 +95,7 @@ export default async function handler(req, res) {
           .order('created_at', { ascending: true })
 
         if (error) {
+          console.error('Error fetching user questions:', error)
           throw error
         }
 
@@ -81,12 +116,14 @@ export default async function handler(req, res) {
         .insert({
           sermon_id: sermonId,
           question_text: question_text.trim(),
-          user_id: user.id
+          user_id: user.id,
+          created_at: new Date().toISOString()
         })
         .select()
         .single()
 
       if (error) {
+        console.error('Error saving public question:', error)
         throw error
       }
 
@@ -110,7 +147,8 @@ export default async function handler(req, res) {
         .from('sermon_public_questions')
         .update({
           admin_response,
-          is_answered: is_answered !== undefined ? is_answered : true
+          is_answered: is_answered !== undefined ? is_answered : true,
+          updated_at: new Date().toISOString()
         })
         .eq('id', question_id)
         .eq('sermon_id', sermonId)
@@ -118,6 +156,7 @@ export default async function handler(req, res) {
         .single()
 
       if (error) {
+        console.error('Error updating public question:', error)
         throw error
       }
 

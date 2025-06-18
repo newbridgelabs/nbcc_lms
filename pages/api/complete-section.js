@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { supabase } from '../../lib/supabase'
 
 // Use service role key for server-side operations
 const supabaseAdmin = createClient(
@@ -18,6 +19,18 @@ export default async function handler(req, res) {
 
     if (!userId || !sectionId) {
       return res.status(400).json({ error: 'User ID and Section ID are required' })
+    }
+
+    // First verify the user exists and is authenticated
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (userError || !user) {
+      console.error('User verification error:', userError)
+      return res.status(401).json({ error: 'User not found or not authenticated' })
     }
 
     // Verify the section exists
@@ -79,16 +92,6 @@ export default async function handler(req, res) {
 
     console.log('Section completed successfully:', result)
 
-    // Check if the section still exists
-    const { data: sectionCheck, error: sectionCheckError } = await supabaseAdmin
-      .from('pdf_sections')
-      .select('*')
-      .eq('id', sectionId)
-      .single()
-
-    console.log('Section check:', sectionCheck)
-    console.log('Section check error:', sectionCheckError)
-
     // Also fetch updated progress to verify
     const { data: updatedProgress, error: progressError } = await supabaseAdmin
       .from('user_progress')
@@ -107,7 +110,6 @@ export default async function handler(req, res) {
       console.error('Error fetching updated progress:', progressError)
     }
     console.log('Updated progress after completion:', updatedProgress)
-    console.log('Progress query error:', progressError)
 
     return res.status(200).json({
       success: true,
@@ -119,7 +121,8 @@ export default async function handler(req, res) {
     console.error('Section completion error:', error)
     return res.status(500).json({ 
       error: 'Failed to complete section', 
-      details: error.message 
+      details: error.message,
+      stack: error.stack
     })
   }
 }

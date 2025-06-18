@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../../components/Layout'
-import { getCurrentUser } from '../../../../lib/supabase'
+import { supabase, getCurrentUser } from '../../../../lib/supabase'
 import { checkAdminStatus } from '../../../../lib/admin-config'
+import { authenticatedFetch } from '../../../../lib/api-client'
 import { 
   ArrowLeft, 
   MessageSquare, 
@@ -60,39 +61,52 @@ export default function SermonQuestions() {
 
   const loadData = async () => {
     try {
+      // Get current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('No auth token available')
+      }
+
       // Load sermon details
-      const sermonResponse = await fetch('/api/sermons')
+      const sermonResponse = await authenticatedFetch(`/api/sermons/${id}`)
       const sermonData = await sermonResponse.json()
       
       if (!sermonResponse.ok) {
         throw new Error(sermonData.error || 'Failed to load sermon')
       }
 
-      const currentSermon = sermonData.sermons.find(s => s.id === id)
-      if (!currentSermon) {
+      if (!sermonData.sermon) {
         toast.error('Sermon not found')
         router.push('/admin/sermons')
         return
       }
-      setSermon(currentSermon)
+      setSermon(sermonData.sermon)
 
-      // Load public questions
-      const questionsResponse = await fetch(`/api/sermons/${id}/public-questions`)
-      const questionsData = await questionsResponse.json()
+      // Load public questions with auth header
+      const questionsResponse = await fetch(`/api/sermons/${id}/public-questions`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
       
-      if (questionsResponse.ok) {
-        setQuestions(questionsData.questions || [])
-        
-        // Initialize responses state
-        const initialResponses = {}
-        questionsData.questions.forEach(q => {
-          initialResponses[q.id] = q.admin_response || ''
-        })
-        setResponses(initialResponses)
+      if (!questionsResponse.ok) {
+        throw new Error('Failed to load questions')
       }
+
+      const questionsData = await questionsResponse.json()
+      console.log('Loaded questions:', questionsData)
+      
+      setQuestions(questionsData.questions || [])
+      
+      // Initialize responses state
+      const initialResponses = {}
+      questionsData.questions.forEach(q => {
+        initialResponses[q.id] = q.admin_response || ''
+      })
+      setResponses(initialResponses)
     } catch (error) {
       console.error('Error loading data:', error)
-      toast.error('Failed to load questions')
+      toast.error('Failed to load questions: ' + error.message)
     }
   }
 
@@ -107,10 +121,17 @@ export default function SermonQuestions() {
     try {
       setUpdating(prev => ({ ...prev, [questionId]: true }))
       
+      // Get current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('No auth token available')
+      }
+
       const response = await fetch(`/api/sermons/${id}/public-questions`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           question_id: questionId,
@@ -128,7 +149,7 @@ export default function SermonQuestions() {
       await loadData() // Reload to get updated data
     } catch (error) {
       console.error('Error updating question:', error)
-      toast.error('Failed to save response')
+      toast.error('Failed to save response: ' + error.message)
     } finally {
       setUpdating(prev => ({ ...prev, [questionId]: false }))
     }

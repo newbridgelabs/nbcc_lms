@@ -7,10 +7,10 @@ export default function EmailService() {
     // Initialize EmailJS when component mounts
     const initEmailJS = () => {
       try {
-        const userId = process.env.NEXT_PUBLIC_EMAILJS_USER_ID
-        if (userId && userId !== 'your_user_id') {
+        const userId = process.env.NEXT_PUBLIC_EMAILJS_USER_ID || 'vjXyYpLgDibpvaLPL'
+        if (userId) {
           emailjs.init(userId)
-          console.log('✅ EmailJS initialized successfully with User ID:', userId)
+          console.log('✅ EmailJS initialized successfully')
         } else {
           console.error('❌ EmailJS User ID not configured')
         }
@@ -28,22 +28,15 @@ export default function EmailService() {
 // Standalone email sending function for client-side use
 export const sendEmailFromClient = async (templateParams) => {
   try {
-    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID
-    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID
-    const userId = process.env.NEXT_PUBLIC_EMAILJS_USER_ID
+    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'service_6p2szkk'
+    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || 'template_h0ekplo'
+    const userId = process.env.NEXT_PUBLIC_EMAILJS_USER_ID || 'vjXyYpLgDibpvaLPL'
 
     console.log('=== CLIENT-SIDE EMAIL SENDING ===')
-    console.log('Service ID:', serviceId)
-    console.log('Template ID:', templateId)
-    console.log('User ID:', userId)
     console.log('Template params:', templateParams)
 
     if (!serviceId || !templateId || !userId) {
       throw new Error('EmailJS configuration missing')
-    }
-
-    if (serviceId === 'your_service_id' || templateId === 'your_template_id' || userId === 'your_user_id') {
-      throw new Error('EmailJS configuration contains placeholder values')
     }
 
     // Check if we're in browser environment
@@ -54,7 +47,6 @@ export const sendEmailFromClient = async (templateParams) => {
     // Ensure EmailJS is initialized
     try {
       emailjs.init(userId)
-      console.log('EmailJS re-initialized with User ID:', userId)
     } catch (initError) {
       console.error('EmailJS initialization error:', initError)
       throw new Error(`EmailJS initialization failed: ${initError.message}`)

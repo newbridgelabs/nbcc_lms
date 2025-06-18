@@ -106,7 +106,8 @@ RETURNS TABLE (
   full_name TEXT,
   is_used BOOLEAN,
   used_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ
+  registered_at TIMESTAMPTZ,
+  invitation_sent_at TIMESTAMPTZ
 ) 
 SECURITY DEFINER
 SET search_path = public
@@ -118,11 +119,13 @@ BEGIN
     au.id,
     au.email,
     au.full_name,
-    au.is_used,
+    COALESCE(au.is_used, FALSE) as is_used,
     au.used_at,
-    au.created_at
+    au.registered_at,
+    au.invitation_sent_at
   FROM allowed_users au
-  WHERE au.email = user_email;
+  WHERE au.email = user_email
+  AND (au.is_used IS NULL OR au.is_used = FALSE);
 END;
 $$;
 
@@ -257,3 +260,81 @@ COMMENT ON FUNCTION cleanup_failed_registration IS 'Cleanup failed registrations
 
 -- Success message
 SELECT 'Registration and email confirmation fixes applied successfully!' as message;
+
+-- Add missing columns to allowed_users table if they don't exist
+DO $$ 
+BEGIN 
+    -- Add is_used column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'allowed_users' AND column_name = 'is_used') THEN
+        ALTER TABLE allowed_users ADD COLUMN is_used boolean DEFAULT false;
+    END IF;
+
+    -- Add used_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'allowed_users' AND column_name = 'used_at') THEN
+        ALTER TABLE allowed_users ADD COLUMN used_at timestamptz;
+    END IF;
+
+    -- Add registered_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'allowed_users' AND column_name = 'registered_at') THEN
+        ALTER TABLE allowed_users ADD COLUMN registered_at timestamptz;
+    END IF;
+
+    -- Add updated_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'allowed_users' AND column_name = 'updated_at') THEN
+        ALTER TABLE allowed_users ADD COLUMN updated_at timestamptz DEFAULT now();
+    END IF;
+END $$;
+
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS check_allowed_user(user_email text);
+
+-- Create or replace the check_allowed_user function
+CREATE OR REPLACE FUNCTION check_allowed_user(user_email text)
+RETURNS TABLE (
+    id uuid,
+    email text,
+    full_name text,
+    is_used boolean,
+    used_at timestamptz,
+    registered_at timestamptz,
+    invitation_sent_at timestamptz
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        au.id,
+        au.email,
+        au.full_name,
+        COALESCE(au.is_used, false) as is_used,
+        au.used_at,
+        au.registered_at,
+        au.invitation_sent_at
+    FROM allowed_users au
+    WHERE au.email = lower(user_email)
+    AND (au.is_used IS NULL OR au.is_used = false);
+END;
+$$;
+
+-- Create or replace the mark_allowed_user_used function
+CREATE OR REPLACE FUNCTION mark_allowed_user_used(user_email text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    UPDATE allowed_users
+    SET 
+        is_used = true,
+        used_at = now(),
+        registered_at = now(),
+        updated_at = now()
+    WHERE email = lower(user_email);
+END;
+$$;

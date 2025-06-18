@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
-import { getCurrentUser } from '../../lib/supabase'
+import { supabase, getCurrentUser } from '../../lib/supabase'
 import { authenticatedFetch } from '../../lib/api-client'
 import {
   ChevronLeft,
@@ -32,11 +32,28 @@ export default function SermonNotes() {
 
   useEffect(() => {
     if (id) {
-      loadSermonData()
+      checkAuthAndLoadData()
     }
   }, [id])
 
-  const loadSermonData = async () => {
+  // Set up auth state listener
+  useEffect(() => {
+    if (!supabase) return
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        setUser(session?.user || null)
+        if (id) loadSermonData(session?.user)
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+        router.push('/auth/login')
+      }
+    })
+
+    return () => subscription?.unsubscribe()
+  }, [id])
+
+  const checkAuthAndLoadData = async () => {
     try {
       const currentUser = await getCurrentUser()
       if (!currentUser) {
@@ -44,9 +61,29 @@ export default function SermonNotes() {
         return
       }
       setUser(currentUser)
+      await loadSermonData(currentUser)
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      router.push('/auth/login')
+    }
+  }
+
+  const loadSermonData = async (currentUser) => {
+    if (!currentUser) return
+
+    try {
+      // Get session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
 
       // Load sermon and questions
-      const sermonResponse = await fetch('/api/sermons')
+      const sermonResponse = await fetch('/api/sermons', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
       const sermonData = await sermonResponse.json()
       
       if (!sermonResponse.ok) {
@@ -64,7 +101,11 @@ export default function SermonNotes() {
       setQuestions(currentSermon.sermon_questions || [])
 
       // Load user responses
-      const responsesResponse = await fetch(`/api/sermons/${id}/responses`)
+      const responsesResponse = await fetch(`/api/sermons/${id}/responses`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
       const responsesData = await responsesResponse.json()
       
       if (responsesResponse.ok) {
@@ -76,7 +117,11 @@ export default function SermonNotes() {
       }
 
       // Load participation status
-      const participationResponse = await fetch(`/api/sermons/${id}/participation`)
+      const participationResponse = await fetch(`/api/sermons/${id}/participation`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
       const participationData = await participationResponse.json()
       
       if (participationResponse.ok && participationData.participation) {
@@ -94,8 +139,19 @@ export default function SermonNotes() {
   const saveResponse = async (questionId, responseText) => {
     try {
       setSaving(true)
-      const response = await authenticatedFetch(`/api/sermons/${id}/responses`, {
+      
+      // Get fresh session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(`/api/sermons/${id}/responses`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           question_id: questionId,
           response_text: responseText
@@ -108,12 +164,18 @@ export default function SermonNotes() {
       }
 
       // Update participation
-      await authenticatedFetch(`/api/sermons/${id}/participation`, {
+      await fetch(`/api/sermons/${id}/participation`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           current_question_index: currentQuestionIndex
         })
       })
+
+      toast.success('Response saved successfully')
 
     } catch (error) {
       console.error('Error saving response:', error)

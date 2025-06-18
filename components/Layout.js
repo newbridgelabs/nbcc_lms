@@ -5,7 +5,7 @@ import { checkAdminStatus } from '../lib/admin-config'
 import { LogOut, Home, BookOpen, FileText, Menu, X } from 'lucide-react'
 import DemoNotification from './DemoNotification'
 import EmailService from './EmailService'
-import toast from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 
 export default function Layout({ children, requireAuth = false }) {
   const [user, setUser] = useState(null)
@@ -33,6 +33,9 @@ export default function Layout({ children, requireAuth = false }) {
             setUser(null)
             setIsAdmin(false)
             router.push('/')
+          } else if (event === 'TOKEN_REFRESHED') {
+            // Update user data with refreshed session
+            setUser(session?.user || null)
           }
           setLoading(false)
         }
@@ -47,15 +50,21 @@ export default function Layout({ children, requireAuth = false }) {
   const checkUser = async () => {
     try {
       if (supabase) {
-        const user = await getCurrentUser()
-        setUser(user)
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
 
-        // Check admin status if user exists
         if (user) {
+          setUser(user)
+          // Check admin status if user exists
           const adminStatus = await checkAdminStatus(user.id, user.email)
           setIsAdmin(adminStatus)
         } else {
+          setUser(null)
           setIsAdmin(false)
+          if (requireAuth) {
+            router.push('/auth/login')
+          }
         }
       } else {
         setUser(null)
@@ -63,6 +72,11 @@ export default function Layout({ children, requireAuth = false }) {
       }
     } catch (error) {
       console.error('Error checking user:', error)
+      setUser(null)
+      setIsAdmin(false)
+      if (requireAuth) {
+        router.push('/auth/login')
+      }
     } finally {
       setLoading(false)
     }
@@ -105,13 +119,17 @@ export default function Layout({ children, requireAuth = false }) {
     try {
       if (supabase) {
         await signOut()
+        setUser(null)
+        setIsAdmin(false)
         toast.success('Signed out successfully')
       } else {
         setUser(null)
+        setIsAdmin(false)
         toast.success('Signed out successfully')
       }
       router.push('/')
     } catch (error) {
+      console.error('Error signing out:', error)
       toast.error('Error signing out')
     }
   }
@@ -400,6 +418,32 @@ export default function Layout({ children, requireAuth = false }) {
           </div>
         </div>
       </footer>
+
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
     </div>
   )
 }

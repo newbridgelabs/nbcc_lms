@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminStatus } from '../../../../lib/admin-config'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -55,99 +56,73 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'No user found' })
     }
 
+    // Check admin access
+    const isAdmin = await checkAdminStatus(user.id, user.email)
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+
     const { id: sermonId } = req.query
 
     if (req.method === 'GET') {
-      // Get user's responses for this sermon
-      const { data: responses, error } = await supabase
-        .from('sermon_responses')
-        .select(`
-          *,
-          sermon_questions (
-            id,
-            question_text,
-            question_order,
-            is_private,
-            placeholder_text
-          )
-        `)
-        .eq('user_id', user.id)
+      // Get total participants
+      const { count: totalParticipants, error: participantsError } = await supabase
+        .from('sermon_participation')
+        .select('*', { count: 'exact', head: true })
         .eq('sermon_id', sermonId)
-        .order('sermon_questions(question_order)', { ascending: true })
 
-      if (error) {
-        console.error('Error fetching responses:', error)
-        throw error
+      if (participantsError) {
+        console.error('Error counting participants:', participantsError)
+        throw participantsError
       }
 
-      return res.status(200).json({ responses })
-    }
-
-    if (req.method === 'POST') {
-      // Save/update user response
-      const { question_id, response_text } = req.body
-
-      if (!question_id) {
-        return res.status(400).json({ error: 'Question ID is required' })
-      }
-
-      // First check if response exists
-      const { data: existingResponse, error: checkError } = await supabase
-        .from('sermon_responses')
-        .select('*')
-        .eq('user_id', user.id)
+      // Get completed participants
+      const { count: completedParticipants, error: completedError } = await supabase
+        .from('sermon_participation')
+        .select('*', { count: 'exact', head: true })
         .eq('sermon_id', sermonId)
-        .eq('question_id', question_id)
-        .single()
+        .not('completed_at', 'is', null)
 
-      let result
-      if (existingResponse) {
-        // Update existing response
-        const { data, error } = await supabase
-          .from('sermon_responses')
-          .update({
-            response_text: response_text || '',
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .eq('sermon_id', sermonId)
-          .eq('question_id', question_id)
-          .select()
-          .single()
-
-        if (error) {
-          console.error('Error updating response:', error)
-          throw error
-        }
-        result = data
-      } else {
-        // Insert new response
-        const { data, error } = await supabase
-          .from('sermon_responses')
-          .insert({
-            user_id: user.id,
-            sermon_id: sermonId,
-            question_id,
-            response_text: response_text || '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single()
-
-        if (error) {
-          console.error('Error inserting response:', error)
-          throw error
-        }
-        result = data
+      if (completedError) {
+        console.error('Error counting completed participants:', completedError)
+        throw completedError
       }
 
-      return res.status(200).json({ response: result })
+      // Get total responses
+      const { count: totalResponses, error: responsesError } = await supabase
+        .from('sermon_responses')
+        .select('*', { count: 'exact', head: true })
+        .eq('sermon_id', sermonId)
+
+      if (responsesError) {
+        console.error('Error counting responses:', responsesError)
+        throw responsesError
+      }
+
+      // Get public questions count
+      const { count: publicQuestions, error: questionsError } = await supabase
+        .from('sermon_public_questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('sermon_id', sermonId)
+
+      if (questionsError) {
+        console.error('Error counting public questions:', questionsError)
+        throw questionsError
+      }
+
+      return res.status(200).json({
+        stats: {
+          totalParticipants: totalParticipants || 0,
+          completedParticipants: completedParticipants || 0,
+          totalResponses: totalResponses || 0,
+          publicQuestions: publicQuestions || 0
+        }
+      })
     }
 
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
-    console.error('Sermon responses API error:', error)
+    console.error('Sermon stats API error:', error)
     return res.status(500).json({ error: error.message || 'Internal server error' })
   }
-}
+} 

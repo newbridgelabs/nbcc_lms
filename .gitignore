@@ -18,6 +18,11 @@
 # misc
 .DS_Store
 *.pem
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # debug
 npm-debug.log*
@@ -35,8 +40,8 @@ yarn-error.log*
 next-env.d.ts
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 
 # OS
 Thumbs.db
@@ -54,5 +59,23 @@ dist/
 build/
 
 # Temporary files
-tmp/
-temp/
+**/temp/
+**/tmp/
+*.tmp
+*.temp
+
+# Diagnostic files
+**/diagnostics/
+**/*-diagnostics.js
+**/*-test.js
+**/email-logs.js
+
+# Fix files
+**/*-fix.js
+**/*-fix.sql
+**/*-fix.md
+
+# Backup files
+*.bak
+*.backup
+*~

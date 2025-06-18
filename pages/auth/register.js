@@ -4,6 +4,7 @@ import Layout from '../../components/Layout'
 import DatabaseSetupNotice from '../../components/DatabaseSetupNotice'
 import { registerUser } from '../../lib/auth'
 import { supabase, signOut } from '../../lib/supabase'
+import { sendVerificationEmail } from '../../lib/supabase-email'
 import { Eye, EyeOff, Mail, User, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -58,62 +59,101 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
     setLoading(true)
+    setErrors({})
 
     try {
-      // First, sign out any existing user to prevent session conflicts
-      console.log('Signing out existing user before registration...')
-      await signOut()
+      if (!validateForm()) {
+        setLoading(false)
+        return
+      }
 
-      const { data, error } = await registerUser(
-        formData.email,
-        formData.password,
-        formData.fullName,
-        formData.username
-      )
+      // First check if user is allowed
+      const { data: allowedUser, error: allowedError } = await supabase
+        .from('allowed_users')
+        .select('*')
+        .eq('email', formData.email.toLowerCase())
+        .single()
+
+      if (allowedError || !allowedUser) {
+        throw new Error('You must be invited to register. Please contact the church administrator.')
+      }
+
+      if (!allowedUser.is_allowed) {
+        throw new Error('Your registration is pending approval. Please wait for an invitation email.')
+      }
+
+      // Register the user with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email.toLowerCase(),
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            username: formData.username,
+            phone: ''
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
 
       if (error) {
+        // Handle rate limit errors specifically
+        if (error.message.includes('security purposes') || error.message.includes('too many requests')) {
+          toast.error('Please wait a minute before trying again (security rate limit)')
+          return
+        }
         throw error
       }
 
-      if (data?.user) {
-        console.log('Registration successful for:', data.user.email)
+      // Create user record in users table
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: data.user.id,
+          email: formData.email.toLowerCase(),
+          full_name: formData.fullName,
+          username: formData.username,
+          is_admin: false,
+          role: 'member'
+        })
 
-        if (data.isResend) {
-          // Confirmation email was resent
-          toast.success('Confirmation email has been resent! Please check your email and click the verification link.')
-        } else {
-          // New registration
-          toast.success('Registration successful! Please check your email and click the verification link.')
-        }
-
-        // Redirect to a success page
-        router.push('/auth/check-email?email=' + encodeURIComponent(formData.email))
-      } else {
-        throw new Error('Registration completed but user data is missing')
+      if (userError) {
+        console.error('Failed to create user record:', userError)
+        // Don't throw here as the auth user is already created
       }
+
+      // Update allowed_users record first before sending verification
+      const { error: updateError } = await supabase
+        .from('allowed_users')
+        .update({
+          is_used: true,
+          used_at: new Date().toISOString(),
+          registered_at: new Date().toISOString()
+        })
+        .eq('email', formData.email.toLowerCase())
+
+      if (updateError) {
+        console.warn('Failed to update allowed_users record:', updateError)
+      }
+
+      // Show success message and redirect
+      toast.success('Registration successful! Please check your email to verify your account.')
+      router.push('/auth/check-email')
+
     } catch (error) {
       console.error('Registration error:', error)
-
-      // Provide more specific error messages
-      let errorMessage = 'Registration failed. Please try again.'
-
-      if (error.message?.includes('already registered')) {
-        errorMessage = 'This email is already registered. Please try signing in instead.'
-      } else if (error.message?.includes('Password')) {
-        errorMessage = 'Password must be at least 6 characters long.'
-      } else if (error.message?.includes('email')) {
-        errorMessage = 'Please enter a valid email address.'
-      } else if (error.message) {
-        errorMessage = error.message
+      
+      // Handle different types of errors
+      if (error.message.includes('security purposes') || error.message.includes('too many requests')) {
+        toast.error('Please wait a minute before trying again (security rate limit)')
+      } else if (error.message.includes('email address is already registered')) {
+        toast.error('This email is already registered. Please try logging in instead.')
+      } else {
+        toast.error(error.message || 'Registration failed. Please try again.')
       }
-
-      toast.error(errorMessage)
+      
+      setErrors({ submit: error.message })
     } finally {
       setLoading(false)
     }
@@ -123,7 +163,7 @@ export default function Register() {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value.trim() // Trim whitespace from inputs
     }))
     
     // Clear error when user starts typing
