@@ -126,7 +126,7 @@ export default function SermonQuestions() {
       if (!session?.access_token) {
         throw new Error('No auth token available')
       }
-
+      
       const response = await fetch(`/api/sermons/${id}/public-questions`, {
         method: 'PUT',
         headers: {

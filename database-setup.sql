@@ -13,6 +13,7 @@ CREATE TABLE public.users (
   verification_code TEXT,
   is_admin BOOLEAN DEFAULT FALSE,
   role TEXT DEFAULT 'member',
+  user_tag TEXT DEFAULT 'newcomer',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   PRIMARY KEY (id)
@@ -61,6 +62,7 @@ CREATE TABLE public.allowed_users (
   invited_by UUID REFERENCES public.users(id),
   is_used BOOLEAN DEFAULT FALSE,
   temp_password TEXT,
+  user_tag TEXT DEFAULT 'newcomer',
   invitation_sent_at TIMESTAMP WITH TIME ZONE,
   registered_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

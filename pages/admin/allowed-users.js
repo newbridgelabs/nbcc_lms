@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
+import MultiSelect from '../../components/MultiSelect'
 import { supabase } from '../../lib/supabase'
 import { checkAdminAccess } from '../../lib/admin-config'
 import { sendEmailJSInvitation } from '../../lib/supabase-email'
-import { ArrowLeft, Users, Plus, Mail, Trash2, Eye, UserPlus, Send, Edit } from 'lucide-react'
+import { ArrowLeft, Users, Plus, Mail, Trash2, Eye, UserPlus, Send, Edit, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AllowedUsersManagement() {
@@ -14,13 +15,18 @@ export default function AllowedUsersManagement() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
-    fullName: ''
+    fullName: '',
+    userTags: ['newcomer'],
+    journeys: []
   })
+  const [availableTags, setAvailableTags] = useState([])
+  const [availableJourneys, setAvailableJourneys] = useState([])
   const [processing, setProcessing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     initializeAdmin()
+    loadAvailableOptions()
   }, [])
 
   const initializeAdmin = async () => {
@@ -28,6 +34,37 @@ export default function AllowedUsersManagement() {
 
     if (isAdmin && currentUser) {
       await loadAllowedUsers()
+    }
+  }
+
+  const loadAvailableOptions = async () => {
+    try {
+      // Load available tags
+      const tags = [
+        'newcomer',
+        'existing_member',
+        'worship_team',
+        'admin',
+        'volunteer',
+        'usher',
+        'sunday_school',
+        'media',
+        'social_media',
+        'nbcc_labs'
+      ]
+      setAvailableTags(tags)
+
+      // Load available journeys
+      const { data: journeys, error } = await supabase
+        .from('journeys')
+        .select('id, title, description')
+        .eq('is_active', true)
+        .order('title')
+
+      if (error) throw error
+      setAvailableJourneys(journeys || [])
+    } catch (error) {
+      console.error('Error loading available options:', error)
     }
   }
 
@@ -46,25 +83,26 @@ export default function AllowedUsersManagement() {
     }
   }
 
-  const handleAllowAndInvite = async (email, fullName) => {
+  const handleAllowAndInvite = async (email, fullName, userTags = ['newcomer'], journeys = []) => {
     try {
       setLoading(true)
-      
+
       // First insert the new user into allowed_users table
       const { error: insertError } = await supabase
         .from('allowed_users')
         .insert([{
           email: email.toLowerCase(),
           full_name: fullName,
+          user_tag: userTags[0] || 'newcomer', // Keep first tag for backward compatibility
           is_allowed: true,
           invitation_sent_at: new Date().toISOString()
         }])
-      
+
       if (insertError) throw insertError
 
       // Send invitation email using EmailJS
       const emailResult = await sendEmailJSInvitation(email, fullName)
-      
+
       if (!emailResult?.success) {
         throw new Error(emailResult?.error || 'Failed to send invitation email')
       }
@@ -224,9 +262,9 @@ export default function AllowedUsersManagement() {
                   </h3>
                   <form onSubmit={async (e) => {
                     e.preventDefault();
-                    await handleAllowAndInvite(formData.email, formData.fullName);
+                    await handleAllowAndInvite(formData.email, formData.fullName, formData.userTags, formData.journeys);
                     setShowAddForm(false);
-                    setFormData({ email: '', fullName: '' });
+                    setFormData({ email: '', fullName: '', userTags: ['newcomer'], journeys: [] });
                   }}>
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -240,7 +278,7 @@ export default function AllowedUsersManagement() {
                         required
                       />
                     </div>
-                    <div className="mb-6">
+                    <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email Address
                       </label>
@@ -252,12 +290,30 @@ export default function AllowedUsersManagement() {
                         required
                       />
                     </div>
+                    <div className="mb-4">
+                      <MultiSelect
+                        label="User Tags"
+                        options={availableTags}
+                        selected={formData.userTags}
+                        onChange={(tags) => setFormData(prev => ({ ...prev, userTags: tags }))}
+                        placeholder="Select user tags..."
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <MultiSelect
+                        label="Initial Journeys (Optional)"
+                        options={availableJourneys.map(j => ({ id: j.id, title: j.title, description: j.description }))}
+                        selected={formData.journeys}
+                        onChange={(journeys) => setFormData(prev => ({ ...prev, journeys }))}
+                        placeholder="Select initial journeys..."
+                      />
+                    </div>
                     <div className="flex justify-end space-x-3">
                       <button
                         type="button"
                         onClick={() => {
                           setShowAddForm(false)
-                          setFormData({ email: '', fullName: '' })
+                          setFormData({ email: '', fullName: '', userTags: ['newcomer'], journeys: [] })
                         }}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
                       >
@@ -317,6 +373,9 @@ export default function AllowedUsersManagement() {
                                 Registered
                               </span>
                             )}
+                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {allowedUser.user_tag || 'newcomer'}
+                            </span>
                           </div>
                           <p className="text-sm text-gray-500">{allowedUser.email}</p>
                           <p className="text-xs text-gray-400">

@@ -197,7 +197,7 @@ export default function ReviewAgreement() {
               </button>
               <div>
                 <h1 className="text-2xl font-bold leading-7 text-gray-900">
-                  Review Membership Agreement
+                  Review Membership Consent
                 </h1>
                 <p className="mt-1 text-sm text-gray-500">
                   {getFormValue('fullName') || getFormValue('name') || 'Unknown'} • Submitted {new Date(agreement.created_at).toLocaleDateString()}

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
+import MultiSelect from '../../components/MultiSelect'
 import { supabase } from '../../lib/supabase'
 import { checkAdminAccess } from '../../lib/admin-config'
-import { ArrowLeft, Users, Search, Trash2, Eye, Shield, User, Mail, Calendar, X } from 'lucide-react'
+import { ArrowLeft, Users, Search, Trash2, Eye, Shield, User, Mail, Calendar, X, Edit } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function UserManagement() {
@@ -14,10 +15,21 @@ export default function UserManagement() {
   const [filter, setFilter] = useState('all') // all, admin, member
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewUser, setViewUser] = useState(null)
+  const [editUser, setEditUser] = useState(null)
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    email: '',
+    tags: [],
+    journeys: []
+  })
+  const [availableTags, setAvailableTags] = useState([])
+  const [availableJourneys, setAvailableJourneys] = useState([])
+  const [processing, setProcessing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     initializeAdmin()
+    loadAvailableOptions()
   }, [])
 
   const initializeAdmin = async () => {
@@ -28,6 +40,148 @@ export default function UserManagement() {
     }
   }
 
+  const loadAvailableOptions = async () => {
+    try {
+      // Load available tags
+      const tags = [
+        'newcomer',
+        'existing_member',
+        'worship_team',
+        'admin',
+        'volunteer',
+        'usher',
+        'sunday_school',
+        'media',
+        'social_media',
+        'nbcc_labs'
+      ]
+      setAvailableTags(tags)
+
+      // Load available journeys
+      const { data: journeys, error } = await supabase
+        .from('journeys')
+        .select('id, title, description')
+        .eq('is_active', true)
+        .order('title')
+
+      if (error) throw error
+      setAvailableJourneys(journeys || [])
+    } catch (error) {
+      console.error('Error loading available options:', error)
+    }
+  }
+
+  const handleEditUser = async (userData) => {
+    try {
+      setProcessing(true)
+
+      // Load user's current tags
+      const { data: userTags, error: tagsError } = await supabase
+        .from('user_tags')
+        .select('tag_name')
+        .eq('user_id', userData.id)
+
+      if (tagsError) throw tagsError
+
+      // Load user's current journeys
+      const { data: userJourneys, error: journeysError } = await supabase
+        .from('user_journeys')
+        .select(`
+          journey_id,
+          journey_order,
+          journeys (
+            id,
+            title,
+            description
+          )
+        `)
+        .eq('user_id', userData.id)
+        .eq('is_active', true)
+        .order('journey_order')
+
+      if (journeysError) throw journeysError
+
+      setEditForm({
+        full_name: userData.full_name || '',
+        email: userData.email || '',
+        tags: userTags?.map(t => t.tag_name) || [],
+        journeys: userJourneys?.map(j => ({
+          journey_id: j.journey_id,
+          title: j.journeys.title,
+          order: j.journey_order
+        })) || []
+      })
+
+      setEditUser(userData)
+    } catch (error) {
+      console.error('Error loading user data for edit:', error)
+      toast.error('Failed to load user data')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleSaveUser = async () => {
+    try {
+      setProcessing(true)
+
+      // Update basic user info
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          full_name: editForm.full_name,
+          email: editForm.email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editUser.id)
+
+      if (userError) throw userError
+
+      // Update user tags
+      const tagsResponse = await fetch('/api/admin/user-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editUser.id,
+          tags: editForm.tags
+        })
+      })
+
+      if (!tagsResponse.ok) {
+        const tagsError = await tagsResponse.json()
+        throw new Error(tagsError.error || 'Failed to update tags')
+      }
+
+      // Update user journeys
+      const journeysResponse = await fetch('/api/admin/user-journeys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editUser.id,
+          journeys: editForm.journeys.map((j, index) => ({
+            journey_id: j.journey_id || j.id,
+            order: index + 1
+          })),
+          assignedBy: user.id
+        })
+      })
+
+      if (!journeysResponse.ok) {
+        const journeysError = await journeysResponse.json()
+        throw new Error(journeysError.error || 'Failed to update journeys')
+      }
+
+      toast.success('User updated successfully!')
+      setEditUser(null)
+      await loadUsers()
+    } catch (error) {
+      console.error('Error saving user:', error)
+      toast.error(error.message || 'Failed to update user')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -35,12 +189,24 @@ export default function UserManagement() {
         .select(`
           *,
           agreements(id, status, created_at),
-          user_progress(id, completed)
+          user_progress(id, completed),
+          user_tags (
+            tag_name,
+            assigned_at,
+            is_active
+          )
         `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setUsers(data || [])
+
+      // Format the data to include tags array
+      const formattedUsers = (data || []).map(user => ({
+        ...user,
+        tags: user.user_tags?.filter(ut => ut.is_active).map(ut => ut.tag_name) || [user.user_tag].filter(Boolean)
+      }))
+
+      setUsers(formattedUsers)
     } catch (error) {
       console.error('Error loading users:', error)
       toast.error('Failed to load users')
@@ -55,11 +221,17 @@ export default function UserManagement() {
       filtered = filtered.filter(user => user.is_admin === true || user.role === 'admin')
     } else if (filter === 'member') {
       filtered = filtered.filter(user => user.is_admin !== true && user.role !== 'admin')
+    } else if (filter === 'newcomer') {
+      filtered = filtered.filter(user => user.tags?.includes('newcomer') || user.user_tag === 'newcomer')
+    } else if (filter === 'existing_member') {
+      filtered = filtered.filter(user => user.tags?.includes('existing_member') || user.user_tag === 'existing_member')
+    } else if (filter === 'worship_team') {
+      filtered = filtered.filter(user => user.tags?.includes('worship_team') || user.user_tag === 'worship_team')
     }
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(user => 
+      filtered = filtered.filter(user =>
         user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.username?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -190,7 +362,7 @@ export default function UserManagement() {
           <div className="bg-white shadow rounded-lg p-6 mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               {/* Type Filter */}
-              <div className="flex space-x-4">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setFilter('all')}
                   className={`px-4 py-2 text-sm font-medium rounded-md ${
@@ -202,6 +374,36 @@ export default function UserManagement() {
                   All Users ({users.length})
                 </button>
                 <button
+                  onClick={() => setFilter('newcomer')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    filter === 'newcomer'
+                      ? 'bg-church-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Newcomers ({users.filter(u => u.user_tag === 'newcomer').length})
+                </button>
+                <button
+                  onClick={() => setFilter('existing_member')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    filter === 'existing_member'
+                      ? 'bg-church-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Existing Members ({users.filter(u => u.user_tag === 'existing_member').length})
+                </button>
+                <button
+                  onClick={() => setFilter('worship_team')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    filter === 'worship_team'
+                      ? 'bg-church-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Worship Team ({users.filter(u => u.user_tag === 'worship_team').length})
+                </button>
+                <button
                   onClick={() => setFilter('admin')}
                   className={`px-4 py-2 text-sm font-medium rounded-md ${
                     filter === 'admin'
@@ -210,16 +412,6 @@ export default function UserManagement() {
                   }`}
                 >
                   Admins ({users.filter(u => u.is_admin === true || u.role === 'admin').length})
-                </button>
-                <button
-                  onClick={() => setFilter('member')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${
-                    filter === 'member'
-                      ? 'bg-church-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Members ({users.filter(u => u.is_admin !== true && u.role !== 'admin').length})
                 </button>
               </div>
 
@@ -264,6 +456,9 @@ export default function UserManagement() {
                         Type
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User Tags
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Agreement
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -305,6 +500,21 @@ export default function UserManagement() {
                             {getUserBadge(userData)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-1">
+                              {(userData.tags && userData.tags.length > 0) ? (
+                                userData.tags.map((tag, index) => (
+                                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {tag}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                  {userData.user_tag || 'No tags'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
                             {stats.hasAgreement ? (
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 stats.agreementStatus === 'completed' 
@@ -331,6 +541,14 @@ export default function UserManagement() {
                                 title="View user details"
                               >
                                 <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleEditUser(userData)}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="Edit user"
+                                disabled={processing}
+                              >
+                                <Edit className="h-4 w-4" />
                               </button>
                               {userData.id !== user.id && (
                                 <button
@@ -383,6 +601,22 @@ export default function UserManagement() {
                     </p>
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-gray-500">User Tags</label>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(viewUser.tags && viewUser.tags.length > 0) ? (
+                        viewUser.tags.map((tag, index) => (
+                          <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          {viewUser.user_tag || 'No tags assigned'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
                     <label className="text-sm font-medium text-gray-500">Joined</label>
                     <p className="text-sm text-gray-900">
                       {new Date(viewUser.created_at).toLocaleDateString()}
@@ -407,6 +641,92 @@ export default function UserManagement() {
                     className="w-full px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
                   >
                     Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit User Modal */}
+        {editUser && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Edit User</h3>
+                  <button
+                    onClick={() => setEditUser(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.full_name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-church-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-church-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tags */}
+                  <div>
+                    <MultiSelect
+                      label="User Tags"
+                      options={availableTags}
+                      selected={editForm.tags}
+                      onChange={(tags) => setEditForm(prev => ({ ...prev, tags }))}
+                      placeholder="Select user tags..."
+                    />
+                  </div>
+
+                  {/* Journeys */}
+                  <div>
+                    <MultiSelect
+                      label="Assigned Journeys"
+                      options={availableJourneys.map(j => ({ id: j.id, title: j.title, description: j.description }))}
+                      selected={editForm.journeys}
+                      onChange={(journeys) => setEditForm(prev => ({ ...prev, journeys }))}
+                      placeholder="Select journeys..."
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    onClick={() => setEditUser(null)}
+                    className="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    disabled={processing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveUser}
+                    className="px-4 py-2 bg-church-primary text-white text-base font-medium rounded-md shadow-sm hover:bg-church-secondary focus:outline-none focus:ring-2 focus:ring-church-primary disabled:opacity-50"
+                    disabled={processing}
+                  >
+                    {processing ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </div>

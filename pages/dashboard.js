@@ -51,6 +51,12 @@ export default function Dashboard() {
         return
       }
       setUser(currentUser)
+
+      // Check if user is a newcomer and should be redirected to journey
+      if (currentUser.user_tag === 'newcomer') {
+        router.push('/journey')
+        return
+      }
       console.log('Current user:', currentUser.id)
 
       // Check if user is admin and redirect to admin dashboard
@@ -61,19 +67,27 @@ export default function Dashboard() {
         return
       }
 
-      // Get PDF sections
-      const { sections: pdfSections, error: sectionsError } = await getPDFSections(supabase)
+      // --- Parallel Data Fetching ---
+      const [
+        { sections: pdfSections, error: sectionsError },
+        { progress: userProgress, error: progressError },
+        { data: agreementData, error: agreementError }
+      ] = await Promise.all([
+        getPDFSections(supabase),
+        getUserProgress(currentUser.id, supabase),
+        supabase.from('agreements').select('*').eq('user_id', currentUser.id).single()
+      ])
+
+      // Process Sections
       if (sectionsError) {
         console.error('Error loading sections:', sectionsError)
-        // If no sections exist, show upload option
         setSections([])
       } else {
         setSections(pdfSections || [])
         console.log('Loaded sections:', pdfSections?.length || 0)
       }
 
-      // Get user progress
-      const { progress: userProgress, error: progressError } = await getUserProgress(currentUser.id, supabase)
+      // Process Progress and Calculate Stats
       if (progressError) {
         console.error('Error loading progress:', progressError)
         setProgress([])
@@ -86,20 +100,12 @@ export default function Dashboard() {
         const validProgress = userProgress || []
         setProgress(validProgress)
         console.log('Loaded progress:', validProgress.length, 'entries')
-        console.log('Progress details:', validProgress.map(p => ({
-          sectionId: p.section_id,
-          sectionNumber: p.pdf_sections?.section_number,
-          completed: p.completed,
-          title: p.pdf_sections?.title
-        })))
 
-        // Calculate stats
         const completedCount = validProgress.filter(p => p.completed && p.pdf_sections).length
         const totalCount = pdfSections?.length || 0
         const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
         console.log('Progress stats:', { completedCount, totalCount, percentage })
-
         setStats({
           completedSections: completedCount,
           totalSections: totalCount,
@@ -107,14 +113,10 @@ export default function Dashboard() {
         })
       }
 
-      // Get user's agreement status
-      const { data: agreementData, error: agreementError } = await supabase
-        .from('agreements')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .single()
-
-      if (agreementData) {
+      // Process Agreement
+      if (agreementError && agreementError.code !== 'PGRST116') { // Ignore 'single row not found'
+        console.error('Error loading agreement:', agreementError)
+      } else {
         setAgreement(agreementData)
       }
     } catch (error) {
@@ -273,7 +275,7 @@ export default function Dashboard() {
                         <div className="ml-3 sm:ml-5 w-0 flex-1">
                           <dl>
                             <dt className="text-xs sm:text-sm font-medium text-gray-500 truncate">
-                              Agreement
+                              Consent
                             </dt>
                             <dd className="text-lg sm:text-xl font-medium text-gray-900">
                               {agreement
@@ -295,6 +297,16 @@ export default function Dashboard() {
                       Quick Actions
                     </h3>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                      {user?.user_tag === 'newcomer' && (
+                        <button
+                          onClick={() => router.push('/journey')}
+                          className="inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-transparent text-base sm:text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 min-h-[44px] w-full transition-colors duration-200"
+                        >
+                          <BookOpen className="h-4 w-4 mr-2 flex-shrink-0" />
+                          <span className="truncate">Start Here - Your Journey</span>
+                        </button>
+                      )}
+
                       {getNextSection() && (
                         <button
                           onClick={() => handleSectionClick(getNextSection())}
@@ -315,7 +327,7 @@ export default function Dashboard() {
                           }`}
                         >
                           <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
-                          <span className="truncate">{agreement ? 'View Agreement Status' : 'Complete Agreement'}</span>
+                          <span className="truncate">{agreement ? 'View Consent Status' : 'Complete Consent'}</span>
                         </button>
                       )}
 

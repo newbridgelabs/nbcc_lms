@@ -204,7 +204,7 @@ export default function AdminDashboard() {
               <div className="flex items-center">
                 <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-church-primary mr-3 sm:mr-4 flex-shrink-0" />
                 <div className="text-left min-w-0">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Review Agreements</h3>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Review Consent Forms</h3>
                   <p className="text-xs sm:text-sm text-gray-500">Sign and approve memberships</p>
                 </div>
               </div>
@@ -223,18 +223,7 @@ export default function AdminDashboard() {
               </div>
             </button>
 
-            <button
-              onClick={() => router.push('/admin/user-status-check')}
-              className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition-shadow min-h-[80px] sm:min-h-[100px]"
-            >
-              <div className="flex items-center">
-                <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-church-primary mr-3 sm:mr-4 flex-shrink-0" />
-                <div className="text-left min-w-0">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">User Status Check</h3>
-                  <p className="text-xs sm:text-sm text-gray-500">Troubleshoot login issues</p>
-                </div>
-              </div>
-            </button>
+
 
             <button
               onClick={() => router.push('/admin/allowed-users')}
@@ -245,6 +234,19 @@ export default function AdminDashboard() {
                 <div className="text-left min-w-0">
                   <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Allowed Users</h3>
                   <p className="text-xs sm:text-sm text-gray-500">Manage registration access</p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/admin/journeys')}
+              className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition-shadow min-h-[80px] sm:min-h-[100px]"
+            >
+              <div className="flex items-center">
+                <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mr-3 sm:mr-4 flex-shrink-0" />
+                <div className="text-left min-w-0">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">Manage Journeys</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Create custom user journeys</p>
                 </div>
               </div>
             </button>
@@ -270,7 +272,7 @@ export default function AdminDashboard() {
             <div className="bg-white shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                  Pending Agreements ({pendingAgreements.length})
+                  Pending Consent Forms ({pendingAgreements.length})
                 </h3>
                 <div className="space-y-4">
                   {pendingAgreements.slice(0, 5).map((agreement) => (
@@ -298,7 +300,7 @@ export default function AdminDashboard() {
                       onClick={() => router.push('/admin/agreements')}
                       className="text-church-primary hover:text-church-secondary text-sm font-medium"
                     >
-                      View all {pendingAgreements.length} pending agreements →
+                      View all {pendingAgreements.length} pending consent forms →
                     </button>
                   </div>
                 )}

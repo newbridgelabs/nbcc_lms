@@ -26,7 +26,7 @@ export default function AgreementStatus() {
 
       setUser(currentUser)
 
-      // Get user's agreement
+      // Get user's consent
       const { data: agreementData, error } = await supabase
         .from('agreements')
         .select('*')
@@ -35,7 +35,7 @@ export default function AgreementStatus() {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // No agreement found, redirect to agreement form
+          // No consent found, redirect to consent form
           router.push('/agreement')
           return
         }
@@ -44,8 +44,8 @@ export default function AgreementStatus() {
 
       setAgreement(agreementData)
     } catch (error) {
-      console.error('Error loading agreement status:', error)
-      toast.error('Failed to load agreement status')
+      console.error('Error loading consent status:', error)
+      toast.error('Failed to load consent status')
     } finally {
       setLoading(false)
     }
@@ -99,16 +99,16 @@ export default function AgreementStatus() {
       case 'pending':
         return {
           icon: <Clock className="h-8 w-8 text-yellow-500" />,
-          title: 'Agreement Under Review',
-          description: 'Your membership agreement has been submitted and is currently being reviewed by church leadership.',
+          title: 'Consent Under Review',
+          description: 'Your membership consent has been submitted and is currently being reviewed by church leadership.',
           bgColor: 'bg-yellow-50',
           borderColor: 'border-yellow-200'
         }
       case 'completed':
         return {
           icon: <CheckCircle className="h-8 w-8 text-green-500" />,
-          title: 'Agreement Approved',
-          description: 'Congratulations! Your membership agreement has been approved and signed by church leadership.',
+          title: 'Consent Approved',
+          description: 'Congratulations! Your membership consent has been approved and signed by church leadership.',
           bgColor: 'bg-green-50',
           borderColor: 'border-green-200'
         }
@@ -142,7 +142,7 @@ export default function AgreementStatus() {
                 <FileText className="h-8 w-8 text-church-primary mr-3" />
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
-                    Membership Agreement Status
+                    Membership Consent Status
                   </h1>
                   <p className="text-sm text-gray-500">
                     Track the status of your membership application
@@ -172,9 +172,9 @@ export default function AgreementStatus() {
               </div>
             </div>
 
-            {/* Agreement Details */}
+            {/* Consent Details */}
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-6">Agreement Details</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-6">Consent Details</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -228,7 +228,7 @@ export default function AgreementStatus() {
                     className="inline-flex items-center px-4 py-2 bg-church-primary text-white font-medium rounded-md hover:bg-church-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-church-primary"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download Signed Agreement PDF
+                    Download Signed Consent PDF
                   </button>
                 )}
                 
@@ -239,7 +239,7 @@ export default function AgreementStatus() {
                     </p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>Church leadership will review your application</li>
-                      <li>A pastor will sign your agreement</li>
+                      <li>A pastor will sign your consent form</li>
                       <li>You'll receive a PDF copy via email</li>
                       <li>You'll be contacted about next steps</li>
                     </ul>

@@ -112,7 +112,7 @@ export default function AgreementsList() {
               </button>
               <div>
                 <h1 className="text-2xl font-bold leading-7 text-gray-900">
-                  Membership Agreements
+                  Membership Consent Forms
                 </h1>
                 <p className="mt-1 text-sm text-gray-500">
                   Review and approve membership applications

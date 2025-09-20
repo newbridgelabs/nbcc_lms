@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       // Try to refresh the session if token is expired
       const { data: { session }, error: refreshError } = await supabase.auth.refreshSession()
       if (refreshError || !session?.user) {
-        return res.status(401).json({ error: 'Invalid authentication' })
+      return res.status(401).json({ error: 'Invalid authentication' })
       }
       user = session.user
     }

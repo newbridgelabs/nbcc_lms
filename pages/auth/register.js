@@ -106,6 +106,15 @@ export default function Register() {
         throw error
       }
 
+      // Get user tag from allowed_users record
+      const { data: allowedUserData, error: allowedUserError } = await supabase
+        .from('allowed_users')
+        .select('user_tag')
+        .eq('email', formData.email.toLowerCase())
+        .single()
+
+      const userTag = allowedUserData?.user_tag || 'newcomer'
+
       // Create user record in users table
       const { error: userError } = await supabase
         .from('users')
@@ -115,7 +124,8 @@ export default function Register() {
           full_name: formData.fullName,
           username: formData.username,
           is_admin: false,
-          role: 'member'
+          role: 'member',
+          user_tag: userTag
         })
 
       if (userError) {

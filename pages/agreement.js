@@ -44,7 +44,7 @@ export default function Agreement() {
       }
       setUser(currentUser)
 
-      // Check if user already has a submitted agreement
+      // Check if user already has a submitted consent
       const { data: existingAgreement, error: agreementError } = await supabase
         .from('agreements')
         .select('*')
@@ -52,7 +52,7 @@ export default function Agreement() {
         .single()
 
       if (existingAgreement) {
-        // User already submitted agreement, show status
+        // User already submitted consent, show status
         router.push('/agreement-status')
         return
       }
@@ -73,7 +73,7 @@ export default function Agreement() {
       
       if (completedSections < totalSections) {
         setCanAccess(false)
-        toast.error('Please complete all study sections before accessing the agreement')
+        toast.error('Please complete all study sections before accessing the consent form')
         router.push('/dashboard')
         return
       }
@@ -81,7 +81,7 @@ export default function Agreement() {
       setCanAccess(true)
     } catch (error) {
       console.error('Error checking access:', error)
-      toast.error('Failed to load agreement page')
+      toast.error('Failed to load consent form')
     } finally {
       setLoading(false)
     }
@@ -110,7 +110,7 @@ export default function Agreement() {
     }
     
     if (!formData.agreement) {
-      toast.error('Please agree to the terms and conditions')
+      toast.error('Please provide your consent to the terms and conditions')
       return false
     }
     
@@ -135,7 +135,7 @@ export default function Agreement() {
       // Debug: Log form data before saving
       console.log('Submitting form data:', formData)
 
-      // Save agreement to database
+      // Save consent to database
       const { data, error } = await supabase
         .from('agreements')
         .insert({
@@ -151,13 +151,13 @@ export default function Agreement() {
         throw error
       }
 
-      toast.success('Agreement submitted successfully!')
+      toast.success('Consent form submitted successfully!')
 
-      // Redirect to agreement status page
+      // Redirect to consent status page
       router.push('/agreement-status')
     } catch (error) {
-      console.error('Error submitting agreement:', error)
-      toast.error('Failed to submit agreement. Please try again.')
+      console.error('Error submitting consent form:', error)
+      toast.error('Failed to submit consent form. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -187,10 +187,10 @@ export default function Agreement() {
               <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-church-primary mr-3 flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                  NBCC Membership Agreement
+                  NBCC Membership Consent
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                  Complete your membership by filling out this agreement
+                  Complete your membership by filling out this consent form
                 </p>
               </div>
             </div>
@@ -401,8 +401,8 @@ export default function Agreement() {
                     className="mt-1 h-4 w-4 text-church-primary focus:ring-church-primary border-gray-300 rounded"
                   />
                   <label className="ml-3 text-sm text-gray-700">
-                    I agree to the church's statement of faith, constitution, and bylaws. I understand 
-                    that this agreement represents my voluntary decision to join this church community.
+                    I agree to the church's statement of faith, constitution, and bylaws. I understand
+                    that this consent represents my voluntary decision to join this church community.
                   </label>
                 </div>
               </div>

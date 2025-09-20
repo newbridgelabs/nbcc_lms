@@ -221,7 +221,7 @@ export default function Layout({ children, requireAuth = false }) {
                     }`}
                   >
                     <FileText className="h-4 w-4 mr-1" />
-                    Agreement
+                    Consent
                   </button>
                 </div>
               )}
@@ -350,7 +350,7 @@ export default function Layout({ children, requireAuth = false }) {
                 }`}
               >
                 <FileText className="h-5 w-5 inline mr-3" />
-                Agreement
+                Consent
               </button>
 
               {/* Mobile sign out */}

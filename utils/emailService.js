@@ -1,6 +1,6 @@
 import emailjs from '@emailjs/browser'
 
-export const sendAgreementEmails = async (userEmail, userName, pdfUrl, agreementId) => {
+export const sendConsentEmails = async (userEmail, userName, pdfUrl, agreementId) => {
   try {
     console.log('=== CLIENT-SIDE EMAIL SENDING ===')
     console.log('Agreement ID:', agreementId)
@@ -29,16 +29,16 @@ export const sendAgreementEmails = async (userEmail, userName, pdfUrl, agreement
     const userEmailParams = {
       to_email: userEmail,
       to_name: userName,
-      subject: '🎉 Your NBCC Membership Agreement has been Approved!',
+      subject: '🎉 Your NBCC Membership Consent has been Approved!',
       message: `Dear ${userName},
 
-Congratulations! 🎉 Your membership agreement has been approved by the church leadership.
+Congratulations! 🎉 Your membership consent has been approved by the church leadership.
 
 ✅ Your membership status: APPROVED
-📄 Your signed agreement is ready for download
+📄 Your signed consent form is ready for download
 🏛️ Welcome to the New Bridge Community Church family!
 
-You can download your signed agreement using the link below. Please save this document for your records.
+You can download your signed consent form using the link below. Please save this document for your records.
 
 Download Link: ${pdfUrl}
 
@@ -62,24 +62,24 @@ New Bridge Community Church`,
     const adminEmailParams = {
       to_email: adminEmail,
       to_name: 'NBCC Admin Team',
-      subject: '📋 Agreement Approved and Member Notified',
+      subject: '📋 Consent Approved and Member Notified',
       message: `Hello Admin Team,
 
-An agreement has been successfully approved and the member has been notified.
+A consent form has been successfully approved and the member has been notified.
 
-📊 AGREEMENT DETAILS:
+📊 CONSENT DETAILS:
 • Member Name: ${userName}
 • Member Email: ${userEmail}
-• Agreement ID: ${agreementId}
+• Consent ID: ${agreementId}
 • Approval Date: ${new Date().toLocaleDateString()}
 • PDF Document: ${pdfUrl}
 
 ✅ ACTIONS COMPLETED:
-• Agreement approved by admin
+• Consent form approved by admin
 • PDF generated and uploaded
 • Member notification email sent successfully
 
-The member has been welcomed to the church family and provided with their signed agreement document.
+The member has been welcomed to the church family and provided with their signed consent document.
 
 This is an automated notification from the NBCC Church Management System.
 
@@ -107,3 +107,6 @@ Automated Email Service`,
     throw error
   }
 }
+
+// Backward compatibility - keep the old function name
+export const sendAgreementEmails = sendConsentEmails
